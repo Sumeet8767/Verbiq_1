@@ -1,0 +1,71 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Backend (Python)
+__pycache__/
+venv/
+backend/.env
+backend/logs/
+backend/recordings/
+backend/suspicious_frames/
+backend/data/
+*.wav
+*.pt
+*.h5
+build_error.log
+verb/
+backend/.env.example
+
+# Virtual environments
+# venv/
+# verb/
+
+# Python cache
+# __pycache__/
+# *.py[cod]
+
+# Environment
+# .env
+# .env.local
+
+# # Logs
+# logs/
+# *.log
+
+# # Runtime generated
+# suspicious_frames/
+# recordings/
+# *.wav
+
+# Database
+*.db
+
+# IDE
+# .vscode/
+# .idea/
+
+# # OS
+# Thumbs.db
+# .DS_Store
