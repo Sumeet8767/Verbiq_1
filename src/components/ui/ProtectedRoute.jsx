@@ -8,7 +8,7 @@ const ProtectedRoute = ({ children }) => {
     if (!isLoggedIn) {
         return (
             <Navigate
-                tp="/login"
+                to="/login"
                 replace
             />
         );
