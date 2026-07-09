@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { GlassCard } from '../components/ui/GlassCard';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { logout } from '../utils/auth';
 import { 
   User, 
   Mail, 
@@ -15,13 +16,17 @@ import {
   Camera, 
   Mic,
   ArrowLeft,
-  CheckCircle2
+  CheckCircle2,
+  LogOut
 } from 'lucide-react';
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
+
+  const [showLogOutModal, setShowLogOutModal] = useState(false);
+
   const [formData, setFormData] = useState({
     name: '',
     middle_name: '',
@@ -31,6 +36,7 @@ const Dashboard = () => {
     language: 'English',
     address: ''
   });
+
 
   const [systemCheck, setSystemCheck] = useState({
     camera: 'pending',
@@ -66,14 +72,16 @@ const Dashboard = () => {
     
     setLoading(true);
 
-    const start = performance.now();
+    console.time("Dashboard API");
 
     try {
       const controller = new AbortController();
+      // just for debigging
+      // const timeout = setTimeout(() => {
 
       const timeout = setTimeout(() => {
         controller.abort();
-      }, 5000);
+      }, 15000);
 
       const response = await fetch(
         "http://localhost:8080/save-candidate-info",
@@ -87,52 +95,52 @@ const Dashboard = () => {
         }
       );
 
+      if (!response.ok) {
+        throw new Error(
+            "Unable to save candidate information."
+        );
+    }
+
       console.log(
         "Response Status:",
         response.status
       );
 
+      const result = await response.json();
+      console.log(result);
+
       clearTimeout(timeout);
 
-      const apiEnd = performance.now();
-
-      console.log(
-        "API Time:",
-        apiEnd - start,
-        "ms"
-      );
+      console.timeEnd("Dashboard API");
 
       const navStart = performance.now();
 
-      navigate("/language-slection", {
+      navigate("/language-selection", {
         replace: true,
       });
 
       console.log(
         "Navigate Time:",
         performance.now() - navStart,
-        "ms"
-      );
-
-      if (!response.ok) {
-        throw new Error("Unable to save Candidate.");
-      }
-      navigate("/language-selection", {
-        replace: true,
-      });
-
-      setLoading(false);
-
-    } catch (err) {
-        console.error("FULL ERROR:",err);
-
-        alert(
-          "unable to Continue.\n\n" +
-          err.message
-        );
-
-        setLoading(false);
+      )
     }
+  
+    catch (err) {
+              console.error("DashBoard Error:",err);
+
+              alert(
+                "unable to Continue.\n\n" +
+                err.message
+              ) 
+            }
+              finally {
+                setLoading(false);
+              }
+        };
+
+  const handleLogOut = () => {
+    setShowLogOutModal(false);
+    logout(navigate);
   };
 
   const steps = [
@@ -633,18 +641,37 @@ const Dashboard = () => {
                       </p>
                     </div>
 
-                    <div className="hidden md:flex flex-col items-end">
+                    <div className="hidden md:flex flex-col items-end gap-4">
 
-                      <span className="text-xs uppercase tracking-widest text-slate-400">
-                        Security
-                      </span>
+                      <div>
 
-                      <div className="flex items-center gap-2">
-                        <ShieldCheck className="w-5 h-5 text-green-500"/>
-                        <span className="text-green-600 font-bold">
-                          AI Verified
+                        <span className="text-xs uppercase tracking-widest text-slate-400">
+                          Security
                         </span>
+
+                        <div className="flex items-center gap-2 mt-1">
+                          <ShieldCheck className="w-5 h-5 text-green-500" />
+                          <span className="text-green-600 font-bold">
+                            AI Verified
+                          </span>
+                        </div>
+
                       </div>
+
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowLogOutModal(true)}
+                        className="
+                          border-red-300
+                          text-red-600
+                          hover:bg-red-50
+                          hover:border-red-500
+                        "
+                      >
+                        <LogOut className="w-4 h-4 mr-2" />
+                        Logout
+                      </Button>
+
                     </div>
 
                   </div>
@@ -774,6 +801,82 @@ const Dashboard = () => {
           </AnimatePresence>
         </div>
       </div>
+      <AnimatePresence>
+        {showLogOutModal && (
+          <Motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="
+            fixed
+            inset-0
+            z-[999999]
+            bg-black/40
+            backdrop-blur-sm
+            flex
+            items-center
+            justify-center
+            p-6
+            "
+          >
+            <Motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <GlassCard className="w-full max-w-md p-8">
+              <div className="text-center">
+
+                <div className="mx-auto mb-5 flex items-center justify-center w-16 h-16 rounded-full bg-red-100">
+
+                  <LogOut className="w-8 h-8 text-red-600" />
+
+                </div>
+
+                <h2 className="text-2xl font-bold text-slate-900">
+
+                  Logout
+
+                </h2>
+
+                <p className="mt-3 text-slate-500">
+
+                  Are you sure you want to logout?
+
+                </p>
+
+                <p className="text-sm text-slate-400 mt-2">
+
+                  Your current session will end.
+
+                </p>
+
+                <div className="mt-8 flex gap-4">
+
+                  <Button
+                    variant="ghost"
+                    className="flex-1"
+                    onClick={() => setShowLogOutModal(false)}
+                  >
+                    Cancel
+                  </Button>
+
+                  <Button
+                    className="flex-1 bg-red-600 hover:bg-red-700"
+                    onClick={handleLogOut}
+                  >
+                    Logout
+                  </Button>
+
+                </div>
+
+                </div>
+              </GlassCard>
+            </Motion.div>
+          </Motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

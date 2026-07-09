@@ -45,6 +45,19 @@ const Assessment = () => {
 
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
+
+  useEffect(() => {
+
+    if (!loading) return;
+
+    const timer = setTimeout(() => {
+        setLoadingTimeout(true);
+    },5000);
+
+    return () => clearTimeout(timer);
+
+ },[loading]);
 
   const [markedForReview, setMarkedForReview] = useState({});
   
@@ -85,6 +98,8 @@ const Assessment = () => {
       : 0;
 
   const handleAutoFinish = async (reason) => {
+
+    if (isSubmittingRef.current) return;
 
     isSubmittingRef.current = true;
     setIsSubmitting(true);
@@ -129,6 +144,10 @@ const Assessment = () => {
       console.warn("Failed to exit fullscreen:", err);
     }
 
+    await new Promise(resolve =>
+        setTimeout(resolve,150)
+    );
+
     showModalRef.current = false;
     setShowModal(false);
     setShowWarning(false);
@@ -137,6 +156,7 @@ const Assessment = () => {
       state: {
         answers,
         timeTaken: 1200 - timeLeft,
+        totalQuestions: questions.length,
         terminated: true,
         reason: reason
       }
@@ -144,48 +164,77 @@ const Assessment = () => {
   
   };
 
+
+  const showViolation = (message) => {
+    setLastWarning(message);
+    setModalReason(message);
+    setWarningMessage(message);
+
+    setShowModal(true);
+    setShowWarning(true);
+
+    showModalRef.current = true;
+
+    setSuspiciousCount(prev => prev + 1);
+  }
+  // const handleSecurityViolation = (reason) => {
+  //   /*setSuspiciousCount(prev => {
+  //     const newCount = prev + 1;
+
+  //     if (newCount >= 3) {
+  //       handleAutoFinish(reason);
+  //       return newCount;
+  //     }
+
+  //     setModalReason(reason);
+  //     setShowModal(true);
+  //     showModalRef.current = true;
+
+  //     return newCount;
+  //   });*/
+
+    
+
+  //   const now = Date.now();
+
+  //   if (
+  //     now - lastViolationRef.current < 5000
+  //   ) {
+  //     return;
+  //   }
+
+  //   lastViolationRef.current = now;
+
+  //   //Show the Warning
+  //   setModalReason(reason);
+  //   setWarningMessage(reason);
+
+  //   setShowModal(true);
+  //   setShowWarning(true);
+
+  //   showModalRef.current = true;
+
+  //   // Increase strike count
+  //   setSuspiciousCount(prev => prev + 1);
+  // };
+
   const handleSecurityViolation = (reason) => {
-    /*setSuspiciousCount(prev => {
-      const newCount = prev + 1;
-
-      if (newCount >= 3) {
-        handleAutoFinish(reason);
-        return newCount;
-      }
-
-      setModalReason(reason);
-      setShowModal(true);
-      showModalRef.current = true;
-
-      return newCount;
-    });*/
-
     const now = Date.now();
-
-    if (
-      now - lastViolationRef.current < 5000
-    ) {
+    if (now - lastViolationRef.current < 5000) {
       return;
     }
-
     lastViolationRef.current = now;
+    showViolation(reason);
+  }
 
-    setSuspiciousCount(prev => {
-
-      const newCount = prev + 1;
-
-      if (newCount >= 3) {
-        handleAutoFinish(reason);
-        return newCount;
-      }
-
-      setModalReason(reason);
-      setShowModal(true);
-      showModalRef.current = true;
-
-      return newCount
-    });
-  };
+  useEffect(() => {
+    if(suspiciousCount >= 3 && 
+      !isSubmittingRef.current
+    ) {
+      handleAutoFinish(modalReason);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suspiciousCount]);
 
   const initProctoring = async () => {
     try {
@@ -195,14 +244,25 @@ const Assessment = () => {
           audio: true
         });
 
+        if (import.meta.env.DEV) {  
       console.log("Camera stream started");
+        }
 
       const stream = audioStreamRef.current;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+
+        await new Promise(resolve => {
+          videoRef.current.onloadedmetadata = () => {
+              videoRef.current.onloadedmetadata = null;
+              resolve();
+          };
+        });
       }
 
+      if (import.meta.env.DEV) {
       console.log("Video attached");
+      }
       
       const session = await proctoringApi.startRecording();
       setProctoringSession(session.session_id);
@@ -215,12 +275,16 @@ const Assessment = () => {
           if (!canvasRef.current) return;
           if (!videoRef.current.videoWidth) return; 
 
+          //Make sure the current video frame is ready
+          if (videoRef.current.readyState !== 4) return;
+
           const canvas = canvasRef.current;
 
           canvas.width = videoRef.current.videoWidth;
           canvas.height = videoRef.current.videoHeight;
 
           const ctx = canvas.getContext('2d');
+
           ctx.drawImage(videoRef.current, 0, 0);
           
           canvas.toBlob(async (blob) => {
@@ -258,25 +322,7 @@ const Assessment = () => {
                   const warningText =
                     result.warning || "Suspicious activity detected. Please stay focused.";
                 
-                  setLastWarning(warningText);
-                
-                  setSuspiciousCount(prev => {
-                    const newCount = prev + 1;
-                
-                    if (newCount >= 3) {
-                      handleAutoFinish("Security Violation: Multiple suspicious activities detected.");
-                    } else {
-                      setModalReason(warningText);
-                      setShowModal(true);
-                      showModalRef.current = true;
-                      
-                      setWarningMessage(warningText);
-                      setShowWarning(true);
-                      showModalRef.current = true;
-                    }
-                
-                    return newCount;
-                  });
+                showViolation(warningText);
                 }
               } catch (err) {
                 console.error("Detection error:", err);
@@ -284,9 +330,10 @@ const Assessment = () => {
               finally {
                 detectionRunningRef.current = false;
               }
-          }, "image/jpeg");
+          }, "image/jpeg",0.7
+        );
         }
-      }, 1200);
+      }, 1000);
     } catch (err) {
       console.error("Webcam initialization failed:", err);
     }
@@ -300,7 +347,7 @@ const Assessment = () => {
       proctoringStartedRef.current = true;
       initProctoring();
     }
-  }, []);
+  }, [location.state]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -327,6 +374,7 @@ const Assessment = () => {
         mediaRecorderRef.current.state !== "inactive"
       ) {
         mediaRecorderRef.current.stop();
+        mediaRecorderRef.current = null;
       }
   
       if (audioStreamRef.current) {
@@ -349,18 +397,21 @@ const Assessment = () => {
       if (videoRef.current) {
         videoRef.current.srcObject = null;
       }
-  
+      window.speechSynthesis.cancel();
     };
   }, []);
 
 useEffect(() => {
-  if (timeLeft === 0) {
-    handleFinish();
+  if (timeLeft === 0 && !isSubmittingRef.current) {
+    handleAutoFinish("Time is over.");
   }
 }, [timeLeft]);
 
 useEffect(() => {
   const handleFullscreenExit = () => {
+    if (isSubmittingRef.current) {
+      return;
+    }
     if (
       !document.fullscreenElement &&
       !isSubmittingRef.current
@@ -387,7 +438,11 @@ useEffect(() => {
 
 useEffect(() => {
   const handleVisibilityChange = () => {
-    if(document.hidden) {
+    if(
+      document.hidden &&
+      !showModalRef.current &&
+      !isSubmittingRef.current
+    ) {
       handleSecurityViolation(
         "Tab Switching detected."
       );
@@ -408,6 +463,14 @@ return () =>
 
 useEffect(() => {
   const handleBlur = () => {
+
+    if (
+        showModalRef.current ||
+        isSubmittingRef.current
+    ) {
+      return;
+    }
+
     handleSecurityViolation(
       "Window focus lost."
     );
@@ -437,6 +500,7 @@ useEffect(() => {
   return () => {
     document.removeEventListener("copy", preventCopy);
     document.removeEventListener("paste", preventPaste);
+    document.removeEventListener("cut", preventPaste);
   };
 }, []);
 
@@ -548,20 +612,11 @@ useEffect(() => {
 
             lastBackendWarningRef.current = now;
 
-             setSuspiciousCount(prev => {
-                const newCount = prev + 1;
-                if (newCount >= 3) {
-                  handleAutoFinish(`Security Violation: ${status.warning || "Multiple audio violations detected."}`);
-                } else {
-                  const warningText = status.warning || "Sensitive audio detected.";
+             const warningText =
+              status.warning ||
+              "Sensitive audio detected.";
 
-                  setLastWarning(warningText);
-                  setModalReason(warningText);
-                  setShowModal(true);
-                  showModalRef.current = true;
-                }
-                return newCount;
-             });
+            showViolation(warningText);
           }
         } catch (err) {
           console.error("Audio polling error:", err);
@@ -574,6 +629,8 @@ useEffect(() => {
   }, [proctoringSession, loading]);
 
   const handleFinish = async () => {
+
+    if (isSubmittingRef.current) return;
 
     isSubmittingRef.current = true;
     setIsSubmitting(true);
@@ -609,10 +666,12 @@ useEffect(() => {
       detectionIntervalRef.current = null;
     }
   
+    if (import.meta.env.DEV) {
     console.log(
       "FullScreen:",
       document.fullscreenElement
     );
+  }
   
     // Exit fullscreen
     try {
@@ -623,25 +682,57 @@ useEffect(() => {
       console.error("Exit Fullscreen Failed:", err);
     }
 
+    await new Promise(resolve => 
+        setTimeout(resolve,150)
+    );
+
     navigate("/completion", {
       state: {
         answers,
-        timeTaken: 1200 -timeLeft
+        timeTaken: 1200 -timeLeft,
+        totalQuestions: questions.length
       }
     });
   };
 
+  if (loadingTimeout) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+
+          <h2 className="text-2xl font-bold mb-3">
+            Unable to load assessment
+          </h2>
+
+          <p className="text-slate-500 mb-6">
+            Something went wrong while loading your questions.
+          </p>
+
+          <Button
+            onClick={() => 
+              navigate("/instructions", {
+                state: {
+                  lang: selectedLanguage
+                }
+              })
+            }
+          >
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  
   if (
     selectedLanguage &&
     !loading &&
     (questions.length === 0 || !currentQuestion)
-  )
-  
-  {
+  ) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin h-10 w-10 border-4 border-primary border-t-transparent rounded-full mx-auto md-4" />
+          <div className="animate-spin h-10 w-10 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4" />
           <p className="font-bold">
             Loading Assessment...
           </p>
@@ -1035,9 +1126,21 @@ useEffect(() => {
                         <div className="flex items-center gap-4">
                           <Button 
                             onClick={async () => {
-                              // TTS logic could go here, or just simulate
-                              const utterance = new SpeechSynthesisUtterance(currentQuestion.text);
-                              utterance.lang = selectedLanguage === 'English' ? 'en-US' : selectedLanguage === 'Spanish' ? 'es-ES' : 'hi-IN';
+
+                              // Stop any speech already playing
+                              window.speechSynthesis.cancel();
+                            
+                              const utterance = new SpeechSynthesisUtterance(
+                                currentQuestion.text
+                              );
+                            
+                              utterance.lang =
+                                selectedLanguage === "English"
+                                  ? "en-US"
+                                  : selectedLanguage === "Spanish"
+                                  ? "es-ES"
+                                  : "hi-IN";
+                            
                               window.speechSynthesis.speak(utterance);
                             }}
                             className="w-16 h-16 rounded-full p-0 flex items-center justify-center"
@@ -1082,7 +1185,9 @@ useEffect(() => {
                                     ?.getTracks()
                                     .forEach(track => track.stop());
 
-                                  answerRecordingStreamRef.current = null;                                
+                                  answerRecordingStreamRef.current = null;    
+                                  
+                                  mediaRecorderRef.current = null;
                                 };
                                 mediaRecorderRef.current.start();
                                 setIsRecording(true);
@@ -1176,6 +1281,8 @@ useEffect(() => {
                                       .forEach(track => track.stop());
 
                                   answerRecordingStreamRef.current = null;  
+
+                                  mediaRecorderRef.current = null;
                                 };
                                 mediaRecorderRef.current.start();
                                 setIsRecording(true);

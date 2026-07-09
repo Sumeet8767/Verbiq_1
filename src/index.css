@@ -122,7 +122,7 @@ body {
   background:
     radial-gradient(circle at top left, rgba(176, 24, 27, 0.08), transparent 35%),
     radial-gradient(circle at bottom left, rgba(0, 71, 93, 0.08), transparent 35%),
-    liner-gradient(180deg, #f8fafc, #eef4f9);
+    linear-gradient(180deg, #f8fafc, #eef4f9);
 
   background-attachment: fixed;
 }
@@ -164,7 +164,7 @@ body {
     background-color .25s,
     color .25s,
     border-color .25s,
-    box-shodaow .25s,
+    box-shodow .25s,
     transform .25s;
 }
 
@@ -231,7 +231,7 @@ a:hover{
 .float{
 
   animation:
-  float 4s ease-in0out infinite;
+  float 4s ease-in-out infinite;
 }
 
 /* Card Hover */
@@ -246,7 +246,7 @@ a:hover{
   transform:
     translateY(-8px);
 
-  box-shodow:
+  box-shadow:
     0 25px 55px rgba(0, 0, 0, .12);
 }
 
@@ -304,7 +304,7 @@ img{
 
 button{
 
-  cursir:pointer;
+  cursor:pointer;
 }
 
 /* Nice Fade */

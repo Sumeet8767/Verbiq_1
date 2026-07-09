@@ -9,32 +9,28 @@ import { ShieldCheck, ArrowLeft, Mail, Lock } from 'lucide-react';
 const Login = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => localStorage.getItem("userEmail") || "");
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
   const navigate = useNavigate();
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem("userEmail"));
 
   useEffect(() => {
 
-    const  savedEmail = localStorage.getItem("user Email");
-
     const savedLogin = localStorage.getItem("isLoggedIn");
 
-    if (savedEmail) {
-      setEmail(savedEmail);
-      setRememberMe(true);
-    }
-
     if (savedLogin === "true") {
-      navigate("/dashboard");
+      navigate("/dashboard", {
+        replace: true,
+      });
     }
-  }, [])
+  }, [navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (loading) return;
     setLoading(true);
     setError('');
 
@@ -44,13 +40,30 @@ const Login = () => {
 
       console.time("Login API");
 
-      const response = await fetch(`http://localhost:8080${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
+      const controller = new AbortController();
+
+      const timeout = setTimeout(() => {
+        controller.abort();
+      }, 15000);
+
+      const response = await fetch(
+        `http://localhost:8080${endpoint}`, 
+        {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json', 
+          },
+          body: JSON.stringify({ 
+            email: email.trim(), 
+            password 
+          }),
+        signal: controller.signal,
+      }
+    );
 
       console.timeEnd("Login API");
+
+      clearTimeout(timeout);
 
       const data = await response.json();
 
@@ -62,19 +75,25 @@ const Login = () => {
 
         setIsSuccess(true);
 
+        //User is Logged in regardless of Remember Me
+        localStorage.setItem("isLoggedIn", "ture");
+
+        // Remember only the email if requested
         if (rememberMe) {
 
-          localStorage.setItem("userEmail", email);
-          localStorage.setItem("isLoggedIn","true");
-        }
+          localStorage.setItem("userEmail", email.trim());
 
-        else {
+        } else {
 
           localStorage.removeItem("userEmail");
-          localStorage.removeItem("isLoggedIn");
+
         }
         // Navigation remains delayed to allow user to see the transition
-          navigate('/dashboard');
+        setTimeout(() => {  
+          navigate("/dashboard", {
+            replace: true
+          });
+        }, 1200);
           
       } else {
 
@@ -203,7 +222,11 @@ const Login = () => {
                       />
                       <span>Remember me</span>
                     </label>
-                    <button type="button" className="text-primary font-bold hover:text-primary-dark transition-colors">
+                    <button 
+                      type="button" 
+                      className="text-primary font-bold hover:text-primary-dark transition-colors"
+                      onClick={() => navigate("/forgot-password")}
+                    >
                       Forgot password?
                     </button>
                   </div>

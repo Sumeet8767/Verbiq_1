@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import React, {
   useState,
   useRef,
@@ -305,12 +304,6 @@ return (
 
 );
 
-=======
-import React from "react";
-
-const VerifyOTP = () => {
-  return <div>Verify OTP</div>;
->>>>>>> ac8ae7f (Frontend Changes)
 };
 
 export default VerifyOTP;
