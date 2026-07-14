@@ -4,17 +4,66 @@ import { useNavigate, Link } from 'react-router-dom';
 import { GlassCard } from '../components/ui/GlassCard';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
-import { ShieldCheck, ArrowLeft, Mail, Lock } from 'lucide-react';
+import { ShieldCheck, ArrowLeft, Mail, Eye, EyeOff } from 'lucide-react';
 
 const Login = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState(() => localStorage.getItem("userEmail") || "");
   const [password, setPassword] = useState('');
+
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const [error, setError] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
   const navigate = useNavigate();
   const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem("userEmail"));
+
+  const getPasswordStrength = () => {
+
+    let score = 0;
+    if (password.length >= 8) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[a-z]/.test(password)) score++;
+    if (/\d/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
+
+    if(score <= 2) {
+      return {
+        label: "Weak",
+        color: "bg-red-500",
+      };
+    }
+
+    if(score <= 4) {
+      return {
+        label: "Medium",
+        color: "bg-yellow-500",
+      };
+    }
+
+    return {
+      label: "Strong",
+      color: "bg-green-500",
+    };
+  };
+
+const strength = getPasswordStrength();
+
+  const isPasswordValid =
+    password.length >= 8 &&
+    /[A-Z]/.test(password) &&
+    /[a-z]/.test(password) &&
+    /\d/.test(password) &&
+    /[^A-Za-z0-9]/.test(password);
+
+  const isSignupValid =
+    email.trim() &&
+    isPasswordValid &&
+    confirmPassword.length > 0 &&
+    password === confirmPassword;
 
   useEffect(() => {
 
@@ -76,7 +125,7 @@ const Login = () => {
         setIsSuccess(true);
 
         //User is Logged in regardless of Remember Me
-        localStorage.setItem("isLoggedIn", "ture");
+        localStorage.setItem("isLoggedIn", "true");
 
         // Remember only the email if requested
         if (rememberMe) {
@@ -166,7 +215,9 @@ const Login = () => {
               {isLogin ? 'Welcome Back' : 'Join Verbiq'}
             </Motion.h1>
             <p className="text-slate-500 font-medium">
-              {isLogin ? 'Securely access your assessment platform' : 'Create an account to start evaluates'}
+              {isLogin 
+                ? "Securely access your assessment platform" 
+                : "Create your Verbiq account to begin your AI assessment."}
             </p>
           </div>
 
@@ -202,14 +253,150 @@ const Login = () => {
                   />
                   <Input 
                     label="Password" 
-                    type="password" 
-                    icon={<Lock className="w-4 h-4" />}
-                    placeholder="••••••••" 
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter Your Password" 
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => { 
+                      setPassword(e.target.value);
+
+                      if (error) {
+                        setError("");
+                      }
+                    }}
+                    rightIcon={ 
+                      showPassword ? (
+                        <EyeOff className="w-5 h-5"/>
+                      ) : (
+                        <Eye className="w-5 h-5" />
+                      )
+                    }
+                    onRightIconClick={() =>
+                      setShowPassword((prev) => !prev)
+                    }
                     required
                   />
+                  
+                  {/* Password Requirements */}
+                  {!isLogin && (
+
+                    <div className="space-y-2 text-sm">
+
+                      <p className={`flex items-center gap-2 ${password.length >= 8 ? "text-green-600" : "text-slate-400"}`}>
+                        <span>{password.length >= 8 ? "✔" : "○"}</span>
+                        At least 8 characters
+                      </p>
+
+                      <p className={`flex items-center gap-2 ${/[A-Z]/.test(password) ? "text-green-600" : "text-slate-400"}`}>
+                        <span>{/[A-Z]/.test(password) ? "✔" : "○"}</span>
+                        One uppercase letter
+                      </p>
+
+                      <p className={`flex items-center gap-2 ${/[a-z]/.test(password) ? "text-green-600" : "text-slate-400"}`}>
+                        <span>{/[a-z]/.test(password) ? "✔" : "○"}</span>
+                        One lowercase letter
+                      </p>
+
+                      <p className={`flex items-center gap-2 ${/\d/.test(password) ? "text-green-600" : "text-slate-400"}`}>
+                        <span>{/\d/.test(password) ? "✔" : "○"}</span>
+                        One number
+                      </p>
+
+                      <p className={`flex items-center gap-2 ${/[^A-Za-z0-9]/.test(password) ? "text-green-600" : "text-slate-400"}`}>
+                        <span>{/[^A-Za-z0-9]/.test(password) ? "✔" : "○"}</span>
+                        One special character
+                      </p>
+
+                    </div>
+
+                  )}
+
+                  {!isLogin && (
+                    <Input 
+                      label="Confirm Password"
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder="Confirm your password"
+                      value={confirmPassword}
+                      onChange={(e) =>{ 
+                        setConfirmPassword(e.target.value);
+                      
+                        if (error) {
+                          setError("");
+                        }
+                      }}
+                      rightIcon={
+                        showConfirmPassword ? (
+                          <EyeOff className="w-5 h-5"/>
+                        ) : (
+                          <Eye className="w-5 h-5" />
+                        )
+                      }
+                      onRightIconClick={() =>
+                        setShowConfirmPassword((prev) => !prev)
+                      }
+                      required
+                    />
+                  )}     
+
+                  {!isLogin && confirmPassword.length > 0 && (
+
+                  <div
+                    className={`flex items-center gap-2 text-sm font-medium ${
+                      password === confirmPassword
+                        ? "text-green-600"
+                        : "text-red-500"
+                    }`}
+                  >
+
+                    <span>
+                      {password === confirmPassword ? "✔" : "✖"}
+                    </span>
+
+                    <span>
+                      {password === confirmPassword
+                        ? "Passwords match"
+                        : "Passwords do not match"}
+                    </span>
+
+                  </div>
+
+                )}
+
+                {!isLogin && (
+
+                <div>
+
+                  <div className="flex justify-between text-sm mb-2">
+
+                    <span>Password Strength</span>
+
+                    <span className="font-semibold">
+                      {strength.label}
+                    </span>
+
+                  </div>
+
+                  <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
+
+                    <div
+                      className={`h-full ${strength.color}`}
+                      style={{
+                        width:
+                          strength.label === "Weak"
+                            ? "33%"
+                            : strength.label === "Medium"
+                            ? "66%"
+                            : "100%",
+                      }}
+                    />
+
+                  </div>
+
                 </div>
+
+                )}
+
+                </div>
+
 
                 {isLogin && (
                   <div className="flex items-center justify-between text-sm">
@@ -236,6 +423,7 @@ const Login = () => {
                     type="submit" 
                     className="w-full py-4 text-lg font-bold shadow-lg shadow-primary/20" 
                     isLoading={loading}
+                    disabled={!isLogin && (!isSignupValid || loading)}
                   >
                     {isLogin ? 'Login' : 'Create Account'}
                   </Button>
@@ -252,7 +440,13 @@ const Login = () => {
             >
               {isLogin ? "Don't have an account?" : "Already have an account?"}{' '}
               <button 
-                onClick={() => setIsLogin(!isLogin)}
+                onClick={() =>{ 
+                  setIsLogin(!isLogin);
+                  setPassword("");
+                  setConfirmPassword("");
+                  setError("");
+                  setIsSuccess(false);
+              }}
                 className="text-primary font-bold hover:underline"
               >
                 {isLogin ? 'Sign Up Now' : 'Sign In'}

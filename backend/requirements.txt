@@ -18,3 +18,4 @@ ultralytics
 mediapipe
 scipy
 sounddevice
+supabase

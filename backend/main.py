@@ -1,3 +1,4 @@
+from re import S
 import numpy as np
 from dotenv import load_dotenv
 import os
@@ -6,6 +7,7 @@ import soundfile as sf
 import cv2
 import json
 import time
+import random
 import asyncio
 import uuid
 import threading
@@ -20,6 +22,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from openai import OpenAI
 from io import BytesIO
+import bcrypt
+from database import(
+    get_user_by_email,
+    create_user,
+    update_password,
+    user_exists,
+)
+
+from auth import (
+    create_access_token,
+    verify_access_token,
+)
 
 # Import local utilities
 from model import transcribe_audio, analyze_text_with_openai, delete_temp_file
@@ -93,6 +107,17 @@ ZCR_THRESHOLD_KEYBOARD = 0.1
 # Global variables for recording management
 recording_sessions = {}
 
+# Tempory OTP storage
+# Format:
+#{
+#   "user@email.com": {
+#       "otp": "123456",
+#       "created_at": 1234567890 
+#   }    
+#}
+
+otp_storage = {}
+
 # === Pydantic Models ===
 class TTSRequest(BaseModel):
     text: str
@@ -133,6 +158,17 @@ class RecordingSession(BaseModel):
 class UserAuth(BaseModel):
     email: str
     password: str
+    
+class VerifyOTPRequest(BaseModel):
+    email: str
+    otp: str
+    
+class ResetPasswordRequest(BaseModel):
+    email: str
+    new_password: str
+    
+class ForgotPasswordRequest(BaseModel):
+    email: str
 
 class CandidateInfo(BaseModel):
     name: str
@@ -230,56 +266,179 @@ async def root():
 # --- Authentication ---
 @app.post("/signup")
 async def signup(user: UserAuth):
-    with open(USERS_FILE, "r") as f:
-        users = json.load(f)
+    user.email = user.email.strip().lower()
     
-    if any(u["email"] == user.email for u in users):
-        raise HTTPException(status_code=400, detail="User already exists")
+    existing_user = get_user_by_email(user.email)
     
-    users.append(user.dict())
-    with open(USERS_FILE, "w") as f:
-        json.dump(users, f)
+    if existing_user:
+        raise HTTPException(
+            status_code = 400,
+            detail = "User already exists"
+        )
+        
+    password_hash = bcrypt.hashpw(
+        user.password.encode(),
+        bcrypt.gensalt()
+    ).decode()
     
-    return {"message": "User created successfully"}
+    create_user(
+        user.email,
+        password_hash,
+    )
+    
+    return {
+        "message": "User created successfully" 
+    }
+    
 
 @app.post("/login")
 async def login(user: UserAuth):
-
+    
     start = time.time()
     print("LOGIN START")
-
-    with open(USERS_FILE, "r") as f:
-        users = json.load(f)
-
+    
+    user.email = user.email.strip().lower()
+    
+    found_user = get_user_by_email(user.email)
+    
+    print("FOUND USER:", found_user)
+    
     print(
-        "JSON READ:",
+        "SUPABASE READ:",
         round(time.time() - start, 2),
         "seconds"
     )
-
-    found_user = next(
-        (
-            u for u in users
-            if u["email"] == user.email
-            and u["password"] == user.password
-        ),
-        None
+    
+    if not found_user:
+        raise HTTPException(
+            status_code=401,
+            detial="Invalid email or password"
+        )
+        
+    password_matches = bcrypt.checkpw(
+        user.password.encode(),
+        found_user["password_hash"].encode()
     )
-
+    
+    print("Password Match:", password_matches)
+    
     print(
         "LOGIN END:",
         round(time.time() - start, 2),
         "seconds"
     )
-
-    if not found_user:
+    
+    if not password_matches:
         raise HTTPException(
-            status_code=401,
+            status_code = 401,
             detail="Invalid email or password"
         )
+        
+    access_token =  create_access_token(
+        {
+            "email": user.email
+        }
+    )
+    
+    return {
+        "message" : "Login Successful",
+        "access_token": access_token,
+        "tokem_type": "Bearer",
+    }
 
-    return {"message": "Login successful"}
-
+@app.post("/forgot-password")
+async def forgot_password(request: ForgotPasswordRequest):
+     
+    #Normalize email
+    request.email = request.email.strip().lower()
+     
+    #Check whether the user exists in supabase
+    user = get_user_by_email(request.email)
+     
+    if not user:
+        raise HTTPException(
+        status_code=404,
+        detail="Email not found"    
+        )
+        
+    #Generate a 6-digit OTP
+    otp = str(random.randint(100000, 999999))
+    
+    #Store OTP temporarily
+    otp_storage[request.email] = {
+        "otp": otp,
+        "created_at": time.time(),
+    }
+    
+    print("\n=====================")
+    print("Forgot Password OTP")
+    print("Email:", request.email)
+    print("OTP:", otp)
+    print("=======================\n")
+    
+    return {
+        "message": "OTP generated successfully"
+    }
+    
+@app.post("/verify-otp")
+async def verify_otp(request: VerifyOTPRequest):
+    
+    stored = otp_storage.get(request.email)
+    
+    request.email = request.email.strip().lower()
+    
+    if not stored:
+        raise HTTPException(
+            status_code = 404,
+            detail = "OTP not found. Please request a new OTP."
+        )
+    # OTP expires after 5 minutes
+    if time.time() - stored["created_at"] > 300:
+        del otp_storage[request.email]
+        
+        raise HTTPException(
+            status_code = 400,
+            detail = "OTP has expired."
+        )
+        
+    if stored["otp"] != request.otp:
+        raise HTTPException(
+            status_code=400,
+            detail = "Invalid OTP."
+        )
+        
+    return {
+        "message": "OTP verified successfully"
+    }
+    
+@app.post("/reset-password")
+async def rese_password(request: ResetPasswordRequest):
+    
+    # Normlize email
+    request.email = request.email.strip().lower()
+    
+    user = get_user_by_email(request.email)
+    
+    if not user:
+        raise HTTPException(
+            status_code = 404,
+            detail = "User not found."
+        )
+        
+    password_hash = bcrypt.hashpw(
+        request.new_password.encode(),
+        bcrypt.gensalt()
+    ).decode()
+    
+    update_password(
+        request.email,
+        password_hash,
+    )
+    
+    return {
+        "message" : "Password reset successfully."
+    }
+    
 # --- Candidate Info ---
 #@app.post("/save-candidate-info")
 #async def save_candidate_info(info: CandidateInfo):

@@ -4,6 +4,8 @@ export const Input = ({
   label,
   error,
   className,
+  rightIcon,
+  onRightIconClick,
   ...props
 }) => {
   return (
@@ -53,7 +55,8 @@ export const Input = ({
             border-slate-200/80
             bg-white/70
             backdrop-blur-xl
-            px-5
+            pl-5
+            pr-12
             py-3.5
             text-slate-800
             shadow-sm
@@ -82,6 +85,28 @@ export const Input = ({
           )}
           {...props}
         />
+
+          {rightIcon && (
+            <button
+              type="button"
+              aria-label="Toggle password visibility"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={onRightIconClick}
+              className="
+                absolute
+                right-4
+                top-1/2
+                -translate-y-1/2
+                text-slate-400
+                hover:text-primary
+                transition-colors
+                cursor-pointer
+                focus:outline-none  
+              "
+            >
+              {rightIcon}
+            </button>
+          )}
       </div>
 
       {error && (

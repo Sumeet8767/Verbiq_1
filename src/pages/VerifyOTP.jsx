@@ -38,45 +38,74 @@ const [otp, setOtp] = useState([
 
 const [loading, setLoading] = useState(false);
 
+const [error, setError] = useState("");
+
 const [timer, setTimer] = useState(60);
 
 const inputRefs = useRef([]);
 
 useEffect(() => {
-  if(timer<=0) return;
-  const interval = setInterval(() =>{
-    setTimer((prev) => prev-1);
+
+  if(timer <= 0) return;
+
+  const interval = setInterval(() => {
+
+    setTimer(prev => prev-1);
+
   }, 1000);
   return () => clearInterval(interval);
 
-},[timer]);
+}, [timer]);
 
-const handleChange = (index, value) => {
+useEffect(() => {
+  inputRefs.current[0]?.focus();
+}, []);
+
+const handleChange = (index, digit) => {
 
   // Allow only numbers
-  if (!/^\d*$/.test(value)) return;
+  if (!/^\d*$/.test(digit)) return;
 
   const newOtp = [...otp];
 
-  newOtp[index] = value.slice(-1);
+  newOtp[index] = digit;
 
   setOtp(newOtp);
 
-  // Move to next input automatically
-  if (value && index < 5) {
-    inputRefs.current[index + 1]?.focus();
+  if (error) {
+    setError("");
   }
 
+  // Move forward after entering a digit
+  if (digit && index < newOtp.length - 1) {
+    inputRefs.current[index + 1]?.focus();
+  }
 };
 
 const handleKeyDown = (index, e) => {
 
-  if (
-    e.key === "Backspace" &&
-    otp[index] === "" &&
-    index > 0
-  ) {
+  if (e.key !== "Backspace") return;
+
+  const newOtp = [...otp];
+  
+  //If current box has a digit, clear it first
+  if (otp[index] !== "") {
+
+    newOtp[index] = "";
+    setOtp(newOtp);
+
+    return;
+  }
+
+  // Current box already empty -> move back
+  if (index > 0) {
+
     inputRefs.current[index - 1]?.focus();
+
+    newOtp[index - 1] = "";
+
+    setOtp(newOtp);
+
   }
 
 };
@@ -85,26 +114,31 @@ const handlePaste = (e) => {
 
   e.preventDefault();
 
-  const pastedData = e.clipboardData
+  const pastedText = e.clipboardData
     .getData("text")
-    .trim();
+    .replace(/\D/g, "")
+    .slice(0, otp.length);
 
-  if (!/^\d{6}$/.test(pastedData)) return;
+  if (!pastedText) return;
 
-  const digits = pastedData.split("");
+  const newOtp = [...otp];
 
-  setOtp(digits);
-
-  digits.forEach((digit, index) => {
-
-    if (inputRefs.current[index]) {
-      inputRefs.current[index].value = digit;
-    }
-
+  pastedText.split("").forEach((digit, index) => {
+    newOtp[index] = digit;
   });
 
-  inputRefs.current[5]?.focus();
+  setOtp(newOtp);
 
+  const nextIndex = Math.min(
+    pastedText.length,
+    otp.length - 1
+  );
+
+  inputRefs.current[nextIndex]?.focus();
+
+  if(error) {
+    setError("");
+  }
 };
 
 const handleVerify = async () => {
@@ -112,34 +146,47 @@ const handleVerify = async () => {
   const enteredOtp = otp.join("");
 
   if (enteredOtp.length !== 6) {
-    alert("Please enter the complete OTP.");
+    setError("Please enter all 6 digits.");
     return;
   }
+
+  setError("");
 
   setLoading(true);
 
   try {
-
-    console.log("Entered OTP:", enteredOtp);
-
-    // Backend API will be connected later
-
-    setTimeout(() => {
-
-      navigate("/reset-password", {
-        state: {
-          email,
+    const response = await fetch(
+      "http://localhost:8080/verify-otp",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      });
+        body: JSON.stringify({
+          email,
+          otp: enteredOtp,
+        }),
+      }
+    );
 
-    }, 1200);
+    const data = await response.json();
 
+    console.log("Verify OTP Response:", data);
+
+    if (!response.ok) {
+      throw new Error(data.detail || "OTP verification failed.");
+    }
+
+    navigate("/reset-password", {
+      state: {
+        email,
+      },
+    });
+  } catch (err) {
+    setError(err.message);
   } finally {
-
     setLoading(false);
-
   }
-
 };
 
 const handleResend = () => {
@@ -148,18 +195,11 @@ const handleResend = () => {
 
   setOtp(["", "", "", "", "", ""]);
 
-  inputRefs.current.forEach(input => {
-
-    if (input) {
-      input.value = "";
-    }
-
-  });
-
   inputRefs.current[0]?.focus();
 
   // Backend resend API will be connected later
-
+  console.log("Resending OTP...");
+  setLoading(false);
 };
 
 return (
@@ -226,6 +266,12 @@ return (
 
       </div>
 
+      {error &&(
+        <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+          {error}
+        </div>
+      )}
+
       <div
         className="flex justify-center gap-3 mb-8"
         onPaste={handlePaste}
@@ -239,6 +285,9 @@ return (
               inputRefs.current[index] = el;     
             }}
             type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            autoComplete={index === 0 ? "one-time-code" : "off"}
             maxLength={1}
             value={digit}
             onChange={(e) =>
@@ -247,18 +296,25 @@ return (
             onKeyDown={(e) =>
               handleKeyDown(index, e)
             }
+            onFocus={(e) => e.target.select()}
             className="
               w-14
               h-16
               rounded-xl
               border
               border-slate-300
+              bg-white
               text-center
               text-2xl
               font-bold
+              text-slate-800
+              shadow-sm
+              transition-all
+              duration-200
               focus:outline-none
               focus:ring-2
               focus:ring-primary
+              focus:border-primary
             "
           />
 
@@ -268,13 +324,30 @@ return (
 
 <div className="text-center">
 
-  <p className="text-sm text-slate-500 mb-4">
-    Resend OTP in
-  </p>
+  <div className="mb-6">
+    {timer > 0 ?  (
+      <>
+        <p className="text-sm text-slate-500">
+          Resend OTP in
+        </p>
 
-  <p className="text-2xl font-bold text-primary mb-6">
-    00:{timer.toString().padStart(2, "0")}
-  </p>
+        <p className="mt-2 text-2xl font-bold text-primary">
+          00:{timer.toString().padStart(2, "0")}
+        </p>
+      </>
+
+    ) : (
+      <>
+        <p className="text-sm text-slate-500">
+          Didn't receive the code?
+        </p>
+
+        <p className="mt-2 text-green-600 font-semibold">
+          You can request a new OTP now.
+        </p>
+      </>
+    )}
+  </div>
 
   <Button
     className="w-full py-4 text-lg font-bold mb-4"
@@ -288,10 +361,27 @@ return (
     variant="ghost"
     onClick={handleResend}
     disabled={timer > 0}
-    className="flex items-center justify-center gap-2 w-full"
+    className={`
+      w-full
+      flex
+      items-center
+      justify-center
+      gap-2
+      transition-all
+      duration-300
+      ${
+        timer > 0
+          ? "opacity-50 cursor-not-allowed"
+          : "text-primary hover:bg-primary/10"
+      }
+    `}
   >
     <RotateCcw className="w-4 h-4" />
-    Resend OTP
+    
+    {timer > 0
+      ? "Resend Disabled"
+      : "Resend OTP"
+    }
   </Button>
 
 </div>

@@ -25,21 +25,38 @@ const ForgotPassword = () => {
         setSuccess("");
 
         try {
-            //Backend API will be connected later
-
-            console.log(email);
-
-            setTimeout(() => {
-                setSuccess(
-                    "OTP has been sent to your registered email."
+            const response = await fetch(
+                "http://localhost:8080/forgot-password",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        email: email.trim(),
+                    }),
+                }
             );
 
-            navigate("/verify-otp", {
-                state: {
-                    email: email.trim(),
-                },
-            });
-            }, 1200); 
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(
+                    data.detail || "Failed to send OTP."
+                );
+            }
+
+            setSuccess(
+                "OTP has been sent to your registered email."
+            );
+
+            setTimeout(() => {
+                navigate("/verify-otp" , {
+                    state: {
+                        email: email.trim(),
+                    },
+                });
+            }, 1200);
         } catch (er) {
             setError(er.message);
         } finally {

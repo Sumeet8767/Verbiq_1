@@ -7,9 +7,9 @@ import Dashboard from './pages/Dashboard';
 import Assessment from './pages/Assessment';
 import Instructions from './pages/Instructions';
 import Completion from './pages/Completion';
-import ProtectedRoute from "./components/ui/ProtectedRoute";
+import ProtectedRoute from "./components/ProtectedRoute";
 import ForgotPassword from './pages/ForgotPassword';
-import VerifyOPT from './pages/VerifyOPT';
+import VerifyOTP from './pages/VerifyOTP';
 import ResetPassword from './pages/ResetPassword';
 import './index.css';
 
@@ -26,7 +26,7 @@ function App() {
           <Route path="/assessment" element={<ProtectedRoute><Assessment/></ProtectedRoute>}/>
           <Route path="/completion" element={<ProtectedRoute><Completion/></ProtectedRoute>}/>
           <Route path="/forgot-password" element={<ForgotPassword/>}/>
-          <Route path="/verify-otp" element={<VerifyOPT/>}/>
+          <Route path="/verify-otp" element={<VerifyOTP/>}/>
           <Route path="/reset-password" element={<ResetPassword/>}/>
         </Routes>
       </div>
